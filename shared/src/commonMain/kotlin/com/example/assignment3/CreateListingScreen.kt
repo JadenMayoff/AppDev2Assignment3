@@ -126,7 +126,8 @@ fun CreateListingScreen(
                         titleError = titleInput.isBlank().also { if (it) isValid = false }
                         descError = descInput.isBlank().also { if (it) isValid = false }
                         priceError = (priceInput.toDoubleOrNull() == null || priceInput.toDouble() <= 0).also { if (it) isValid = false }
-                        imageUrlError = imageUrlInput.isBlank().also { if (it) isValid = false }
+                        // Check if the URL is blank OR doesn't start with http
+                        imageUrlError = (imageUrlInput.isBlank() || !imageUrlInput.startsWith("http")).also { if (it) isValid = false }
                         categoryError = selectedCategory.isBlank().also { if (it) isValid = false }
 
                         if (isValid) {

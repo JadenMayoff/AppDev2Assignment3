@@ -3,12 +3,13 @@ package com.example.assignment3
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
@@ -17,15 +18,15 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import kotlinx.serialization.json.Json
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 @Composable
 fun App() {
-    // 1. STATE HOISTING: We keep the master list at the very top of the app.
-    // We are reusing your custom listSaver from Assignment 2 to survive screen rotations!
+    // STATE HOISTING: The master list lives here so all screens can access it.
     val itemList = rememberSaveable(
         saver = listSaver(
             save = { stateList ->
-                // Flattening the object to save it during rotation
                 stateList.flatMap { listOf(it.title, it.description, it.price.toString(), it.category, it.imageUrl) }
             },
             restore = { savedList ->
@@ -44,91 +45,89 @@ fun App() {
                 restoredList
             }
         )
-    ) {
-        mutableStateListOf<Item>()
-    }
+    ) { mutableStateListOf<Item>() }
 
+    // INITIALIZE NAVIGATION CONTROLLER
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
-    // 2. RESPONSIVE DESIGN: BoxWithConstraints lets us measure the available screen width.
+    // RESPONSIVE LAYOUT CHECK
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         if (maxWidth < 600.dp) {
-            // MOBILE LAYOUT (Android): Content on top, NavigationBar on the bottom
+            // Mobile Layout: Navigation at the bottom
             Column(modifier = Modifier.fillMaxSize()) {
-                Box(modifier = Modifier.weight(1f)) {
-                    MarketplaceNavHost(navController, itemList)
-                }
+                Box(modifier = Modifier.weight(1f)) { MarketplaceNavHost(navController, itemList) }
                 MarketplaceBottomBar(navController, currentRoute)
             }
         } else {
-            // DESKTOP/WEB LAYOUT: NavigationRail on the left, Content on the right
+            // Desktop Layout: Navigation on the left rail
             Row(modifier = Modifier.fillMaxSize()) {
                 MarketplaceNavRail(navController, currentRoute)
-                Box(modifier = Modifier.weight(1f)) {
-                    MarketplaceNavHost(navController, itemList)
-                }
+                Box(modifier = Modifier.weight(1f)) { MarketplaceNavHost(navController, itemList) }
             }
         }
     }
 }
 
-// 3. NAVIGATION HOST: Maps our routes to the actual UI screens
+@OptIn(ExperimentalEncodingApi::class)
 @Composable
 fun MarketplaceNavHost(navController: NavHostController, itemList: MutableList<Item>) {
     NavHost(navController = navController, startDestination = Screen.Create.route) {
 
-        // SCREEN 1: Create Listing
         composable(Screen.Create.route) {
             CreateListingScreen(
                 onSubmit = { newItem ->
-                    itemList.add(newItem) // Add to our hoisted state
-                    val jsonItem = Screen.Preview.createRoute(newItem) // Serialize to JSON
-                    navController.navigate(jsonItem) // Navigate to preview and pass item
+                    itemList.add(newItem) // 1. Add to the state list
+                    val encodedItemRoute = Screen.Preview.createRoute(newItem) // 2. Encode to string
+                    navController.navigate(encodedItemRoute) // 3. Navigate
                 }
             )
         }
 
-        // SCREEN 2: Preview (Receives the JSON parameter)
-        composable(Screen.Preview.route) { backStackEntry ->
-            // Extract the passed JSON string from the URL and convert it back to an Item
-            val itemJson = backStackEntry.arguments?.getString("itemJson")
-            val item = itemJson?.let { Json.decodeFromString<Item>(it) }
+        composable(Screen.Preview.route) {
+            // Bypass the KMP SavedState parsing issues completely by just
+            // grabbing the item we added to the hoisted state a millisecond ago.
+            val item = itemList.lastOrNull()
 
             if (item != null) {
-                // TODO: Build PreviewScreen
-                Text("Preview Screen for: ${item.title}")
+                ListingPreviewScreen(
+                    item = item,
+                    onNavigateToFeed = {
+                        navController.navigate(Screen.Feed.route) {
+                            popUpTo(Screen.Create.route) // Prevents the user from clicking back endlessly
+                        }
+                    }
+                )
+            } else {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Error loading preview.", color = MaterialTheme.colorScheme.error)
+                }
             }
         }
 
-        // SCREEN 3: Interactive Feed
         composable(Screen.Feed.route) {
-            // TODO: Build FeedScreen
-            Text("Feed Screen - Items count: ${itemList.size}")
+            FeedScreen(itemList = itemList)
         }
 
-        // SCREEN 4: Information Screen
+        // Add the new Information screen route
         composable(Screen.About.route) {
-            // TODO: Build AboutScreen
-            Text("About JAC Marketplace")
+            AboutScreen()
         }
     }
 }
-
-// --- RESPONSIVE NAVIGATION COMPONENTS ---
 
 @Composable
 fun MarketplaceBottomBar(navController: NavHostController, currentRoute: String?) {
     NavigationBar {
         NavigationBarItem(
-            icon = { Icon(Icons.Default.AddCircle, contentDescription = "Create") },
+            icon = { Icon(Icons.Default.Add, contentDescription = "Create") },
             label = { Text("Post") },
             selected = currentRoute == Screen.Create.route,
             onClick = { navController.navigate(Screen.Create.route) }
         )
         NavigationBarItem(
-            icon = { Icon(Icons.Default.List, contentDescription = "Feed") },
+            icon = { Icon(Icons.Default.Menu, contentDescription = "Feed") },
             label = { Text("Feed") },
             selected = currentRoute == Screen.Feed.route,
             onClick = { navController.navigate(Screen.Feed.route) }
@@ -146,13 +145,13 @@ fun MarketplaceBottomBar(navController: NavHostController, currentRoute: String?
 fun MarketplaceNavRail(navController: NavHostController, currentRoute: String?) {
     NavigationRail {
         NavigationRailItem(
-            icon = { Icon(Icons.Default.AddCircle, contentDescription = "Create") },
+            icon = { Icon(Icons.Default.Add, contentDescription = "Create") },
             label = { Text("Post") },
             selected = currentRoute == Screen.Create.route,
             onClick = { navController.navigate(Screen.Create.route) }
         )
         NavigationRailItem(
-            icon = { Icon(Icons.Default.List, contentDescription = "Feed") },
+            icon = { Icon(Icons.Default.Menu, contentDescription = "Feed") },
             label = { Text("Feed") },
             selected = currentRoute == Screen.Feed.route,
             onClick = { navController.navigate(Screen.Feed.route) }

@@ -46,9 +46,12 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
-            implementation("org.jetbrains.androidx.navigation:navigation-compose:2.7.0-alpha07")
+            implementation("org.jetbrains.androidx.navigation:navigation-compose:2.9.0-beta03")
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
             implementation(compose.materialIconsExtended)
+            implementation("media.kamel:kamel-image:0.9.4")
+            implementation("io.ktor:ktor-client-core:2.3.12")
+            implementation("io.ktor:ktor-client-cio:2.3.12")
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

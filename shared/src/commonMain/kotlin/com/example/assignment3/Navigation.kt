@@ -5,18 +5,21 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 // A simple sealed class to define our routes as required
 sealed class Screen(val route: String) {
     object Create : Screen("create")
 
-    // The preview screen takes a parameter in its route
-    object Preview : Screen("preview/{itemJson}") {
-        // Helper function to convert the Item object into a JSON string for the route URL
+    // The preview route expects an encoded parameter
+    object Preview : Screen("preview/{itemBase64}") {
+        @OptIn(ExperimentalEncodingApi::class)
         fun createRoute(item: Item): String {
-            // Note: Make sure to add @Serializable to your Item data class!
             val jsonString = Json.encodeToString(item)
-            return "preview/$jsonString"
+            // Encode safely and strip padding ('=') to prevent route corruption crashes
+            val base64String = Base64.UrlSafe.encode(jsonString.encodeToByteArray()).replace("=", "")
+            return "preview/$base64String"
         }
     }
 
